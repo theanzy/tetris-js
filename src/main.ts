@@ -92,7 +92,7 @@ class Block {
 
   getRotation(pivot: [number, number]) {
     const r1 = [this.x - pivot[0], this.y - pivot[1]];
-    const r2 = [r1[1], -r1[0]];
+    const r2 = [-r1[1], r1[0]];
     return [r2[0] + pivot[0], r2[1] + pivot[1]] as [number, number];
   }
 }
@@ -101,7 +101,8 @@ class Tetromino {
   shape: TetroShape;
   blocks: Block[];
   isLanded: boolean;
-  constructor() {
+  filledGrid: string[][];
+  constructor(filledGrid: string[][]) {
     this.shape = 'L';
     const tetro = TETROMINOES[this.shape];
     const startPos = FIELD_START;
@@ -115,13 +116,11 @@ class Tetromino {
         )
     );
     this.isLanded = false;
+    this.filledGrid = filledGrid;
   }
 
-  landed(y: number) {
-    if (y >= FIELD_ROWS) {
-      this.isLanded = true;
-    }
-    return this.isLanded;
+  filled(x: number, y: number) {
+    return Boolean(this.filledGrid[y]?.[x]);
   }
 
   rotate() {
@@ -142,7 +141,9 @@ class Tetromino {
   isCollide(newBlockPos: number[][]) {
     return newBlockPos.some((p) => {
       const xCollide = p[0] < 0 || p[0] >= FIELD_COLS;
-      return this.landed(p[1]) || xCollide;
+      const yCollide = p[1] >= FIELD_ROWS;
+      const collided = yCollide || xCollide || this.filled(p[0], p[1]);
+      return collided;
     });
   }
 
@@ -155,6 +156,8 @@ class Tetromino {
         b.x += vDir[0];
         b.y += vDir[1];
       });
+    } else if (dir === 'down') {
+      this.isLanded = true;
     }
   }
 
@@ -205,12 +208,18 @@ class Game {
   dropInterval: number;
   keys: string[];
   waitTicks: Map<string, { delay: number; tick: number }>;
+  filledGrid: string[][];
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
     this.ctx.imageSmoothingEnabled = false;
-    this.currentTetromino = new Tetromino();
+    this.filledGrid = Array.from({ length: FIELD_ROWS }, () => {
+      return Array.from({ length: FIELD_COLS }, () => {
+        return '';
+      });
+    });
+    this.currentTetromino = new Tetromino(this.filledGrid);
     this.dropTick = 0;
     this.dropInterval = 500;
     this.keys = [];
@@ -288,13 +297,44 @@ class Game {
     this.dropTick += dt;
     if (this.dropTick >= this.dropInterval) {
       this.currentTetromino.update(dt);
+      if (this.currentTetromino.isLanded) {
+        // fill grid
+        this.currentTetromino.blocks.forEach((b) => {
+          this.filledGrid[b.y][b.x] = b.color;
+        });
+        this.currentTetromino = new Tetromino(this.filledGrid);
+      }
       this.dropTick = 0;
     }
 
     // draw
+    this.drawFilled(this.ctx);
     this.drawGrid();
     this.currentTetromino.render(this.ctx);
     debug(this.ctx, `${this.dropTick.toFixed(0)}`, 20, 20);
+  }
+
+  drawFilled(ctx: CanvasRenderingContext2D) {
+    for (let r = 0; r < this.filledGrid.length; r++) {
+      for (let c = 0; c < this.filledGrid[r].length; c++) {
+        if (!this.filledGrid[r][c]) {
+          continue;
+        }
+        const x = c * FIELD_TILE_SIZE;
+        const y = r * FIELD_TILE_SIZE;
+        ctx.fillStyle = this.filledGrid[r][c];
+        ctx.beginPath();
+        ctx.roundRect(
+          x + 2,
+          y + 2,
+          FIELD_TILE_SIZE - 4,
+          FIELD_TILE_SIZE - 4,
+          3
+        );
+        ctx.fill();
+        ctx.closePath();
+      }
+    }
   }
 }
 
