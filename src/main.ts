@@ -6,8 +6,18 @@ const FIELD_ROWS = 20;
 const FIELD_WIDTH = FIELD_COLS * FIELD_TILE_SIZE;
 const FIELD_HEIGHT = FIELD_ROWS * FIELD_TILE_SIZE;
 const FIELD_START = [Math.floor(FIELD_COLS / 2), 0];
+const FIELD_BG = 'hsl(252, 4%, 16%)';
 
-const FIELD_BG = 'hsl(252, 4%, 25%)';
+const SIDE_TILE_SIZE = 32;
+const SIDE_COLS = 5;
+const SIDE_ROWS = 20;
+const SIDE_BG = 'hsl(0, 4%, 5%)';
+const SIDE_WIDTH = SIDE_COLS * SIDE_TILE_SIZE;
+const FONT_SIZE = Math.floor(SIDE_TILE_SIZE * 0.56);
+
+const GAME_WIDTH = FIELD_WIDTH + SIDE_WIDTH;
+const GAME_HEIGHT = FIELD_HEIGHT;
+
 type TetroShape = 'T' | 'O' | 'J' | 'L' | 'I' | 'S' | 'Z';
 const TETROMINOES: Record<TetroShape, [number, number][]> = {
   T: [
@@ -53,6 +63,8 @@ const TETROMINOES: Record<TetroShape, [number, number][]> = {
     [-1, -1],
   ],
 };
+
+const LINE_SCORE_MULTIPLIER = 20;
 
 const TETRO_SHAPES = Object.keys(TETROMINOES) as [TetroShape, ...TetroShape[]];
 function randomTetroShape() {
@@ -114,10 +126,9 @@ class Tetromino {
   blocks: Block[];
   isLanded: boolean;
   filledGrid: string[][];
-  constructor(filledGrid: string[][]) {
+  constructor(filledGrid: string[][], startPos = FIELD_START) {
     this.shape = randomTetroShape();
     const tetro = TETROMINOES[this.shape];
-    const startPos = FIELD_START;
     this.blocks = tetro.map(
       ([x, y]) =>
         new Block(
@@ -187,9 +198,9 @@ class Tetromino {
 
 function setupCanvas() {
   const canvas = document.querySelector('#myCanvas') as HTMLCanvasElement;
-  canvas.width = FIELD_WIDTH;
-  canvas.height = FIELD_HEIGHT;
-  canvas.style.height = `${FIELD_HEIGHT}px`;
+  canvas.width = GAME_WIDTH;
+  canvas.height = GAME_HEIGHT;
+  canvas.style.height = `${GAME_HEIGHT}px`;
   canvas.style.backgroundColor = FIELD_BG;
 
   canvas.style.maxHeight = '100%';
@@ -200,15 +211,16 @@ function setupCanvas() {
 
 let lastTime = 0;
 
-function debug(
+function drawText(
   ctx: CanvasRenderingContext2D,
   msg: string,
   x: number,
-  y: number
+  y: number,
+  fontSize = 20
 ) {
   ctx.textBaseline = 'top';
   ctx.fillStyle = 'white';
-  ctx.font = 'bold 20px Play';
+  ctx.font = `bold ${fontSize}px Play`;
   ctx.fillText(msg, x, y);
 }
 
@@ -216,11 +228,13 @@ class Game {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   currentTetromino: Tetromino;
+  nextTetromino: Tetromino;
   dropTick: number;
   dropInterval: number;
   keys: string[];
   waitTicks: Map<string, { delay: number; tick: number }>;
   filledGrid: string[][];
+  score: number;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -232,11 +246,13 @@ class Game {
       });
     });
     this.currentTetromino = new Tetromino(this.filledGrid);
+    this.nextTetromino = new Tetromino(this.filledGrid);
     this.dropTick = 0;
     this.dropInterval = 200;
     this.keys = [];
     this.setupControls();
     this.waitTicks = new Map();
+    this.score = 0;
   }
 
   setupControls() {
@@ -288,6 +304,38 @@ class Game {
     }
   }
 
+  drawSide(offsetX: number) {
+    drawText(
+      this.ctx,
+      `Score ${this.score}`,
+      offsetX + SIDE_TILE_SIZE,
+      FONT_SIZE,
+      FONT_SIZE
+    );
+
+    drawText(
+      this.ctx,
+      'Next',
+      offsetX + SIDE_TILE_SIZE,
+      SIDE_TILE_SIZE * 2,
+      FONT_SIZE
+    );
+
+    this.ctx.fillStyle = SIDE_BG;
+    const startX = offsetX + SIDE_TILE_SIZE;
+    const startY = SIDE_TILE_SIZE * 3;
+    this.ctx.fillRect(startX - SIDE_TILE_SIZE, startY, SIDE_TILE_SIZE * 5, SIDE_TILE_SIZE * 4);
+    this.ctx.fillStyle = this.nextTetromino.blocks[0].color;
+    const blocks = TETROMINOES[this.nextTetromino.shape];
+    blocks.forEach((b) => {
+      this.ctx.fillRect(
+        startX + SIDE_TILE_SIZE + b[0] * SIDE_TILE_SIZE + 2,
+        startY + SIDE_TILE_SIZE * 2 + b[1] * SIDE_TILE_SIZE + 2,
+        SIDE_TILE_SIZE - 4,
+        SIDE_TILE_SIZE - 4
+      );
+    });
+  }
   wait(key: string, delay: number, dt: number) {
     if (!this.waitTicks.has(key)) {
       this.waitTicks.set(key, { delay, tick: 0 });
@@ -306,6 +354,7 @@ class Game {
 
   clearLines() {
     let rowToFill = FIELD_ROWS - 1;
+    let clearedLines = 0;
     for (let r = FIELD_ROWS - 1; r >= 0; r--) {
       // fill cleared row
       for (let c = 0; c < FIELD_COLS; c++) {
@@ -315,8 +364,11 @@ class Game {
       // keep row if it is not filled
       if (!lineFull) {
         rowToFill -= 1;
+      } else {
+        clearedLines += 1;
       }
     }
+    this.score += clearedLines * LINE_SCORE_MULTIPLIER;
   }
 
   render(dt: number) {
@@ -333,8 +385,8 @@ class Game {
         });
 
         this.clearLines();
-
-        this.currentTetromino = new Tetromino(this.filledGrid);
+        this.currentTetromino = this.nextTetromino;
+        this.nextTetromino = new Tetromino(this.filledGrid);
       }
       this.dropTick = 0;
     }
@@ -343,7 +395,13 @@ class Game {
     this.drawFilled(this.ctx);
     this.drawGrid();
     this.currentTetromino.render(this.ctx);
-    debug(this.ctx, `${this.dropTick.toFixed(0)}`, 20, 20);
+    drawText(
+      this.ctx,
+      `${this.dropTick.toFixed(0)}, Score: ${this.score}`,
+      20,
+      20
+    );
+    this.drawSide(FIELD_WIDTH);
   }
 
   drawFilled(ctx: CanvasRenderingContext2D) {
