@@ -233,7 +233,7 @@ class Game {
     });
     this.currentTetromino = new Tetromino(this.filledGrid);
     this.dropTick = 0;
-    this.dropInterval = 500;
+    this.dropInterval = 200;
     this.keys = [];
     this.setupControls();
     this.waitTicks = new Map();
@@ -254,7 +254,7 @@ class Game {
   }
 
   control(dt: number) {
-    const done = this.wait('control', 120, dt);
+    const done = this.wait('control', 80, dt);
     if (!done) {
       return;
     }
@@ -302,6 +302,21 @@ class Game {
     return false;
   }
 
+  clearLines() {
+    let rowToFill = FIELD_ROWS - 1;
+    for (let r = FIELD_ROWS - 1; r >= 0; r--) {
+      // fill cleared row
+      for (let c = 0; c < FIELD_COLS; c++) {
+        this.filledGrid[rowToFill][c] = this.filledGrid[r][c];
+      }
+      const lineFull = this.filledGrid[r].every((x) => x !== '');
+      // keep row if it is not filled
+      if (!lineFull) {
+        rowToFill -= 1;
+      }
+    }
+  }
+
   render(dt: number) {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     // update
@@ -314,6 +329,9 @@ class Game {
         this.currentTetromino.blocks.forEach((b) => {
           this.filledGrid[b.y][b.x] = b.color;
         });
+
+        this.clearLines();
+
         this.currentTetromino = new Tetromino(this.filledGrid);
       }
       this.dropTick = 0;
