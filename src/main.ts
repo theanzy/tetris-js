@@ -54,6 +54,18 @@ const TETROMINOES: Record<TetroShape, [number, number][]> = {
   ],
 };
 
+const TETRO_SHAPES = Object.keys(TETROMINOES) as [TetroShape, ...TetroShape[]];
+function randomTetroShape() {
+  const idx = Math.floor(Math.random() * TETRO_SHAPES.length);
+  return TETRO_SHAPES[idx];
+}
+
+const TETRO_COLORS = TETRO_SHAPES.reduce((res, s, idx) => {
+  const h = (idx * 40) % 255;
+  res[s] = `hsl(${h}, 80%, 66%)`;
+  return res;
+}, {} as Record<TetroShape, string>);
+
 const DIRECTIONS = {
   down: [0, 1],
   left: [-1, 0],
@@ -103,16 +115,16 @@ class Tetromino {
   isLanded: boolean;
   filledGrid: string[][];
   constructor(filledGrid: string[][]) {
-    this.shape = 'L';
+    this.shape = randomTetroShape();
     const tetro = TETROMINOES[this.shape];
     const startPos = FIELD_START;
     this.blocks = tetro.map(
-      ([x, y], i) =>
+      ([x, y]) =>
         new Block(
           FIELD_TILE_SIZE,
           startPos[0] + x,
           startPos[1] + y,
-          i === 0 ? 'red' : 'orange'
+          TETRO_COLORS[this.shape]
         )
     );
     this.isLanded = false;
