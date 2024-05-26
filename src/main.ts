@@ -66,11 +66,11 @@ class Block {
   x: number;
   y: number;
   color: string;
-  constructor(size: number, x: number, y: number) {
+  constructor(size: number, x: number, y: number, color: string) {
     this.size = size;
     this.x = x;
     this.y = y;
-    this.color = 'orange';
+    this.color = color;
   }
   render(ctx: CanvasRenderingContext2D) {
     ctx.fillStyle = this.color;
@@ -89,6 +89,12 @@ class Block {
     this.x += d[0];
     this.y += d[1];
   }
+
+  getRotation(pivot: [number, number]) {
+    const r1 = [this.x - pivot[0], this.y - pivot[1]];
+    const r2 = [r1[1], -r1[0]];
+    return [r2[0] + pivot[0], r2[1] + pivot[1]] as [number, number];
+  }
 }
 
 class Tetromino {
@@ -100,7 +106,13 @@ class Tetromino {
     const tetro = TETROMINOES[this.shape];
     const startPos = FIELD_START;
     this.blocks = tetro.map(
-      ([x, y]) => new Block(FIELD_TILE_SIZE, startPos[0] + x, startPos[1] + y)
+      ([x, y], i) =>
+        new Block(
+          FIELD_TILE_SIZE,
+          startPos[0] + x,
+          startPos[1] + y,
+          i === 0 ? 'red' : 'orange'
+        )
     );
     this.isLanded = false;
   }
@@ -112,8 +124,22 @@ class Tetromino {
     return this.isLanded;
   }
 
-  isCollide(dir: [number, number]) {
-    const newBlockPos = this.blocks.map((b) => [b.x + dir[0], b.y + dir[1]]);
+  rotate() {
+    const first = this.blocks[0];
+    const pivot = [first.x, first.y];
+    const newPos = this.blocks.map((b) => b.getRotation(pivot as any));
+
+    const canRotate = !this.isCollide(newPos);
+
+    if (canRotate) {
+      this.blocks.forEach((b, i) => {
+        b.x = newPos[i][0];
+        b.y = newPos[i][1];
+      });
+    }
+  }
+
+  isCollide(newBlockPos: number[][]) {
     return newBlockPos.some((p) => {
       const xCollide = p[0] < 0 || p[0] >= FIELD_COLS;
       return this.landed(p[1]) || xCollide;
@@ -122,7 +148,8 @@ class Tetromino {
 
   move(dir: Direction) {
     let vDir = DIRECTIONS[dir];
-    const canmove = !this.isCollide(vDir as [number, number]);
+    const newBlockPos = this.blocks.map((b) => [b.x + vDir[0], b.y + vDir[1]]);
+    const canmove = !this.isCollide(newBlockPos);
     if (canmove) {
       this.blocks.forEach((b) => {
         b.x += vDir[0];
@@ -190,6 +217,7 @@ class Game {
     this.setupControls();
     this.waitTicks = new Map();
   }
+
   setupControls() {
     window.onkeydown = (e) => {
       if (!this.keys.includes(e.key)) {
@@ -205,7 +233,7 @@ class Game {
   }
 
   control(dt: number) {
-    const done = this.wait('control', 100, dt);
+    const done = this.wait('control', 120, dt);
     if (!done) {
       return;
     }
@@ -214,6 +242,8 @@ class Game {
       this.currentTetromino.move('left');
     } else if (k === 'ArrowRight') {
       this.currentTetromino.move('right');
+    } else if (k === 'ArrowUp') {
+      this.currentTetromino.rotate();
     }
   }
 
