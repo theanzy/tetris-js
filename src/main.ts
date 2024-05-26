@@ -84,6 +84,46 @@ const DIRECTIONS = {
   right: [1, 0],
 } as const;
 type Direction = keyof typeof DIRECTIONS;
+class BlockSFX {
+  size: number;
+  x: number;
+  y: number;
+  color: string;
+  angle: number;
+  alive: boolean;
+  constructor(size: number, x: number, y: number, color: string) {
+    this.size = size;
+    // use coordinates here
+    this.x = x * this.size;
+    this.y = y * this.size;
+    this.color = color;
+    this.angle = 0.2;
+    this.alive = true;
+  }
+  render(ctx: CanvasRenderingContext2D) {
+    if (!this.alive) {
+      return;
+    }
+    ctx.strokeStyle = this.color;
+    ctx.beginPath();
+    ctx.roundRect(this.x + 2, this.y + 2, this.size - 4, this.size - 4, 3);
+    ctx.stroke();
+    ctx.closePath();
+  }
+  update(dt: number) {
+    if (!this.alive) {
+      return;
+    }
+    const d = 0.2 * dt;
+    const halfd = 0.1 * dt;
+    this.size += d;
+    this.x -= halfd;
+    this.y -= halfd;
+    if (this.size >= FIELD_TILE_SIZE + 10) {
+      this.alive = false;
+    }
+  }
+}
 
 class Block {
   size: number;
@@ -235,6 +275,7 @@ class Game {
   waitTicks: Map<string, { delay: number; tick: number }>;
   filledGrid: string[][];
   score: number;
+  blockEffects: BlockSFX[];
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -248,11 +289,12 @@ class Game {
     this.currentTetromino = new Tetromino(this.filledGrid);
     this.nextTetromino = new Tetromino(this.filledGrid);
     this.dropTick = 0;
-    this.dropInterval = 200;
+    this.dropInterval = 400;
     this.keys = [];
     this.setupControls();
     this.waitTicks = new Map();
     this.score = 0;
+    this.blockEffects = [];
   }
 
   setupControls() {
@@ -291,7 +333,7 @@ class Game {
   }
 
   drawGrid() {
-    this.ctx.fillStyle = 'black';
+    this.ctx.strokeStyle = 'black';
     for (let r = 0; r < FIELD_ROWS; r++) {
       for (let c = 0; c < FIELD_COLS; c++) {
         this.ctx.strokeRect(
@@ -324,16 +366,25 @@ class Game {
     this.ctx.fillStyle = SIDE_BG;
     const startX = offsetX + SIDE_TILE_SIZE;
     const startY = SIDE_TILE_SIZE * 3;
-    this.ctx.fillRect(startX - SIDE_TILE_SIZE, startY, SIDE_TILE_SIZE * 5, SIDE_TILE_SIZE * 4);
+    this.ctx.fillRect(
+      startX - SIDE_TILE_SIZE,
+      startY,
+      SIDE_TILE_SIZE * 5,
+      SIDE_TILE_SIZE * 4
+    );
     this.ctx.fillStyle = this.nextTetromino.blocks[0].color;
     const blocks = TETROMINOES[this.nextTetromino.shape];
     blocks.forEach((b) => {
-      this.ctx.fillRect(
+      this.ctx.beginPath();
+      this.ctx.roundRect(
         startX + SIDE_TILE_SIZE + b[0] * SIDE_TILE_SIZE + 2,
         startY + SIDE_TILE_SIZE * 2 + b[1] * SIDE_TILE_SIZE + 2,
         SIDE_TILE_SIZE - 4,
-        SIDE_TILE_SIZE - 4
+        SIDE_TILE_SIZE - 4,
+        4
       );
+      this.ctx.fill();
+      this.ctx.closePath();
     });
   }
   wait(key: string, delay: number, dt: number) {
@@ -366,6 +417,10 @@ class Game {
         rowToFill -= 1;
       } else {
         clearedLines += 1;
+        for (let c = 0; c < FIELD_COLS; c++) {
+          const color = this.filledGrid[r][c];
+          this.blockEffects.push(new BlockSFX(FIELD_TILE_SIZE, c, r, color));
+        }
       }
     }
     this.score += clearedLines * LINE_SCORE_MULTIPLIER;
@@ -390,17 +445,23 @@ class Game {
       }
       this.dropTick = 0;
     }
+    for (let i = 0; i < this.blockEffects.length; i++) {
+      const bfx = this.blockEffects[i];
+      bfx.update(dt);
+      if (!bfx.alive) {
+        this.blockEffects.slice(i, 1);
+        continue;
+      }
+    }
 
     // draw
     this.drawFilled(this.ctx);
     this.drawGrid();
     this.currentTetromino.render(this.ctx);
-    drawText(
-      this.ctx,
-      `${this.dropTick.toFixed(0)}, Score: ${this.score}`,
-      20,
-      20
-    );
+    for (let i = 0; i < this.blockEffects.length; i++) {
+      const bfx = this.blockEffects[i];
+      bfx.render(this.ctx);
+    }
     this.drawSide(FIELD_WIDTH);
   }
 
