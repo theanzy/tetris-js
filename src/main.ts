@@ -85,6 +85,10 @@ class Block {
     ctx.fill();
     ctx.closePath();
   }
+  move(d: [number, number]) {
+    this.x += d[0];
+    this.y += d[1];
+  }
 }
 
 class Tetromino {
@@ -108,20 +112,29 @@ class Tetromino {
     return this.isLanded;
   }
 
-  isCollide() {
-    const newBlockPos = this.blocks.map((b) => [b.x, b.y + 1]);
-    return newBlockPos.some((p) => this.landed(p[1]));
+  isCollide(dir: [number, number]) {
+    const newBlockPos = this.blocks.map((b) => [b.x + dir[0], b.y + dir[1]]);
+    return newBlockPos.some((p) => {
+      const xCollide = p[0] < 0 || p[0] >= FIELD_COLS;
+      return this.landed(p[1]) || xCollide;
+    });
   }
-  update(dt: number) {
-    let dir: Direction = 'down';
+
+  move(dir: Direction) {
     let vDir = DIRECTIONS[dir];
-    if (!this.isCollide()) {
+    const canmove = !this.isCollide(vDir as [number, number]);
+    if (canmove) {
       this.blocks.forEach((b) => {
         b.x += vDir[0];
         b.y += vDir[1];
       });
     }
   }
+
+  update(dt: number) {
+    this.move('down');
+  }
+
   render(ctx: CanvasRenderingContext2D) {
     for (let i = 0; i < this.blocks.length; i++) {
       const b = this.blocks[i];
@@ -163,6 +176,8 @@ class Game {
   currentTetromino: Tetromino;
   dropTick: number;
   dropInterval: number;
+  keys: string[];
+  waitTicks: Map<string, { delay: number; tick: number }>;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -171,7 +186,41 @@ class Game {
     this.currentTetromino = new Tetromino();
     this.dropTick = 0;
     this.dropInterval = 500;
+    this.keys = [];
+    this.setupControls();
+    this.waitTicks = new Map();
   }
+  setupControls() {
+    window.onkeydown = (e) => {
+      if (!this.keys.includes(e.key)) {
+        this.keys.push(e.key);
+      }
+    };
+    window.onkeyup = (e) => {
+      const idx = this.keys.findIndex((k) => k === e.key);
+      if (idx !== -1) {
+        this.keys.splice(idx, 1);
+      }
+    };
+  }
+
+  control(dt: number) {
+    const done = this.wait('control', 100, dt);
+    if (!done) {
+      return;
+    }
+    const k = this.getKey();
+    if (k === 'ArrowLeft') {
+      this.currentTetromino.move('left');
+    } else if (k === 'ArrowRight') {
+      this.currentTetromino.move('right');
+    }
+  }
+
+  getKey() {
+    return this.keys[this.keys.length - 1];
+  }
+
   drawGrid() {
     this.ctx.fillStyle = 'black';
     for (let r = 0; r < FIELD_ROWS; r++) {
@@ -185,19 +234,40 @@ class Game {
       }
     }
   }
+
+  wait(key: string, delay: number, dt: number) {
+    if (!this.waitTicks.has(key)) {
+      this.waitTicks.set(key, { delay, tick: 0 });
+    }
+    const t = this.waitTicks.get(key);
+    if (!t) {
+      return false;
+    }
+    t.tick += dt;
+    if (t.tick >= t.delay) {
+      t.tick = 0;
+      return true;
+    }
+    return false;
+  }
+
   render(dt: number) {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // update
+    this.control(dt);
     this.dropTick += dt;
     if (this.dropTick >= this.dropInterval) {
       this.currentTetromino.update(dt);
       this.dropTick = 0;
     }
 
+    // draw
     this.drawGrid();
     this.currentTetromino.render(this.ctx);
     debug(this.ctx, `${this.dropTick.toFixed(0)}`, 20, 20);
   }
 }
+
 function run() {
   const canvas = setupCanvas();
   const game = new Game(canvas);
