@@ -265,6 +265,8 @@ class Game {
       this.currentTetromino.move('right');
     } else if (k === 'ArrowUp') {
       this.currentTetromino.rotate();
+    } else if (k === 'ArrowDown') {
+      this.currentTetromino.move('down');
     }
   }
 
