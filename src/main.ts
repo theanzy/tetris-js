@@ -276,6 +276,7 @@ class Game {
   filledGrid: string[][];
   score: number;
   blockEffects: BlockSFX[];
+  state: 'game-over' | 'playing';
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -295,6 +296,7 @@ class Game {
     this.waitTicks = new Map();
     this.score = 0;
     this.blockEffects = [];
+    this.state = 'playing';
   }
 
   setupControls() {
@@ -429,31 +431,37 @@ class Game {
   render(dt: number) {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     // update
-    this.control(dt);
-    this.dropTick += dt;
-    if (this.dropTick >= this.dropInterval) {
-      this.currentTetromino.update(dt);
-      if (this.currentTetromino.isLanded) {
-        // fill grid
-        this.currentTetromino.blocks.forEach((b) => {
-          this.filledGrid[b.y][b.x] = b.color;
-        });
+    if (this.state === 'playing') {
+      this.control(dt);
+      this.dropTick += dt;
+      if (this.dropTick >= this.dropInterval) {
+        this.currentTetromino.update(dt);
+        if (this.currentTetromino.isLanded) {
+          // fill grid
+          this.currentTetromino.blocks.forEach((b) => {
+            if (b.y >= 0) {
+              this.filledGrid[b.y][b.x] = b.color;
+            }
+          });
 
-        this.clearLines();
-        this.currentTetromino = this.nextTetromino;
-        this.nextTetromino = new Tetromino(this.filledGrid);
+          this.clearLines();
+          if (this.currentTetromino.blocks.some((b) => b.y <= 0)) {
+            this.state = 'game-over';
+          }
+          this.currentTetromino = this.nextTetromino;
+          this.nextTetromino = new Tetromino(this.filledGrid);
+        }
+        this.dropTick = 0;
       }
-      this.dropTick = 0;
-    }
-    for (let i = 0; i < this.blockEffects.length; i++) {
-      const bfx = this.blockEffects[i];
-      bfx.update(dt);
-      if (!bfx.alive) {
-        this.blockEffects.slice(i, 1);
-        continue;
+      for (let i = 0; i < this.blockEffects.length; i++) {
+        const bfx = this.blockEffects[i];
+        bfx.update(dt);
+        if (!bfx.alive) {
+          this.blockEffects.slice(i, 1);
+          continue;
+        }
       }
     }
-
     // draw
     this.drawFilled(this.ctx);
     this.drawGrid();
@@ -463,6 +471,17 @@ class Game {
       bfx.render(this.ctx);
     }
     this.drawSide(FIELD_WIDTH);
+    if (this.state === 'game-over') {
+      this.ctx.fillStyle = 'hsla(0,0%,0%,0.4)';
+      this.ctx.fillRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
+      drawText(
+        this.ctx,
+        'Game over',
+        FIELD_WIDTH / 2 - FIELD_TILE_SIZE * 2,
+        FIELD_HEIGHT / 2 - FIELD_TILE_SIZE,
+        FONT_SIZE * 2
+      );
+    }
   }
 
   drawFilled(ctx: CanvasRenderingContext2D) {
