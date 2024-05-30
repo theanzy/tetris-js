@@ -169,12 +169,16 @@ class Tetromino {
   constructor(filledGrid: string[][], startPos = FIELD_START) {
     this.shape = randomTetroShape();
     const tetro = TETROMINOES[this.shape];
+    const minY = tetro.reduce((r, t) => {
+      return Math.min(r, t[1]);
+    }, Infinity);
+
     this.blocks = tetro.map(
       ([x, y]) =>
         new Block(
           FIELD_TILE_SIZE,
           startPos[0] + x,
-          startPos[1] + y,
+          startPos[1] + y - minY,
           TETRO_COLORS[this.shape]
         )
     );
