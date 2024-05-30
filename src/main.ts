@@ -342,19 +342,19 @@ class Game {
   }
 
   control(dt: number) {
-    const done = this.wait('control', 80, dt);
-    if (!done) {
-      return;
-    }
     const k = this.getKey();
-    if (k === 'ArrowLeft') {
-      this.currentTetromino.move('left');
-    } else if (k === 'ArrowRight') {
-      this.currentTetromino.move('right');
-    } else if (k === 'ArrowUp') {
+    if (this.wait('control', 80, dt)) {
+      if (k === 'ArrowLeft') {
+        this.currentTetromino.move('left');
+      } else if (k === 'ArrowRight') {
+        this.currentTetromino.move('right');
+      } else if (k === 'ArrowDown') {
+        this.currentTetromino.move('down');
+      }
+    }
+    if (k === 'ArrowUp' && this.wait('ArrowUp', 100, dt)) {
+      this.keys.pop();
       this.currentTetromino.rotate();
-    } else if (k === 'ArrowDown') {
-      this.currentTetromino.move('down');
     }
   }
 
