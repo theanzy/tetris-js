@@ -229,8 +229,8 @@ class Tetromino {
     }
   }
 
-  isCollide(newBlockPos: number[][]) {
-    return newBlockPos.some((p) => {
+  isCollide(positions: number[][]) {
+    return positions.some((p) => {
       const xCollide = p[0] < 0 || p[0] >= FIELD_COLS;
       const yCollide = p[1] >= FIELD_ROWS;
       const collided = yCollide || xCollide || this.filled(p[0], p[1]);
@@ -376,6 +376,37 @@ class Game {
     }
   }
 
+  getDropPreview(tetro: Tetromino, filledGrid: string[][]) {
+    let previewPos: number[][] = [];
+    for (let i = 0; i < FIELD_ROWS; i++) {
+      const maxY = tetro.blocks.reduce((r, b) => Math.max(r, b.y), -Infinity);
+      const newPos = tetro.blocks.map((b) => [b.x, b.y + (i - maxY)]);
+      if (newPos.some(([x, y]) => filledGrid[y]?.[x])) {
+        break;
+      }
+      previewPos = newPos;
+    }
+    return previewPos;
+  }
+
+  drawDropPreview(ctx: CanvasRenderingContext2D, tetro: Tetromino) {
+    const previewPos = this.getDropPreview(tetro, this.filledGrid);
+    ctx.strokeStyle = `${tetro.blocks[0].color}`;
+    for (let i = 0; i < previewPos.length; i++) {
+      const pos = previewPos[i];
+      ctx.beginPath();
+      ctx.roundRect(
+        pos[0] * FIELD_TILE_SIZE + 2,
+        pos[1] * FIELD_TILE_SIZE + 2,
+        FIELD_TILE_SIZE - 4,
+        FIELD_TILE_SIZE - 4,
+        4
+      );
+      ctx.stroke();
+      ctx.closePath();
+    }
+  }
+
   drawSide(offsetX: number) {
     drawText(
       this.ctx,
@@ -493,6 +524,7 @@ class Game {
     // draw
     this.drawFilled(this.ctx);
     this.drawGrid();
+    this.drawDropPreview(this.ctx, this.currentTetromino);
     this.currentTetromino.render(this.ctx);
     for (let i = 0; i < this.blockEffects.length; i++) {
       const bfx = this.blockEffects[i];
