@@ -157,9 +157,7 @@ class Block {
   }
 
   getRotation(pivot: [number, number]) {
-    const r1 = [this.x - pivot[0], this.y - pivot[1]];
-    const r2 = [-r1[1], r1[0]];
-    return [r2[0] + pivot[0], r2[1] + pivot[1]] as [number, number];
+    return rotatePoint([this.x, this.y], pivot);
   }
 }
 
@@ -294,6 +292,12 @@ function drawText(
   ctx.fillText(msg, x, y);
 }
 
+function rotatePoint(pos: [number, number], pivot: [number, number]) {
+  const r1 = [pos[0] - pivot[0], pos[1] - pivot[1]];
+  const r2 = [-r1[1], r1[0]];
+  return [r2[0] + pivot[0], r2[1] + pivot[1]] as [number, number];
+}
+
 class Game {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -307,6 +311,7 @@ class Game {
   score: number;
   blockEffects: BlockSFX[];
   state: 'game-over' | 'playing';
+  sideTetroPositions: Record<TetroShape, number[][]>;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -327,6 +332,16 @@ class Game {
     this.score = 0;
     this.blockEffects = [];
     this.state = 'playing';
+    this.sideTetroPositions = TETRO_SHAPES.reduce((r, shape) => {
+      const tetro = TETROMINOES[shape];
+      r[shape] = this.tetroCenteredPos(tetro, {
+        left: FIELD_WIDTH,
+        right: FIELD_WIDTH + SIDE_TILE_SIZE * 5,
+        top: SIDE_TILE_SIZE * 3,
+        bottom: SIDE_TILE_SIZE * 3 + SIDE_TILE_SIZE * 2,
+      });
+      return r;
+    }, {} as Record<TetroShape, number[][]>);
   }
 
   setupControls() {
@@ -409,7 +424,7 @@ class Game {
     }
   }
 
-  drawHardDopEffect(ctx: CanvasRenderingContext2D, tetro: Tetromino) {
+  drawHardDropEffect(ctx: CanvasRenderingContext2D, tetro: Tetromino) {
     let startX = +Infinity;
     let endX = -Infinity;
     let startY = -Infinity;
@@ -425,7 +440,7 @@ class Game {
 
     for (let i = startY; i <= endY; i++) {
       ctx.fillStyle = `hsl(${TETRO_HUES.get(tetro.shape)},10%, ${
-        (endY - i) * 2 + 15
+        (endY - i) * 2 + 20
       }%)`;
       for (let j = startX; j <= endX; j++) {
         ctx.fillRect(
@@ -462,24 +477,50 @@ class Game {
       startX - SIDE_TILE_SIZE,
       startY,
       SIDE_TILE_SIZE * 5,
-      SIDE_TILE_SIZE * 4
+      SIDE_TILE_SIZE * 2
     );
     this.ctx.fillStyle = this.nextTetromino.blocks[0].color;
-    const blocks = TETROMINOES[this.nextTetromino.shape];
-    blocks.forEach((b) => {
+    this.sideTetroPositions[this.nextTetromino.shape].forEach((t) => {
       this.ctx.beginPath();
-      this.ctx.roundRect(
-        startX + SIDE_TILE_SIZE + b[0] * SIDE_TILE_SIZE + 2,
-        startY + SIDE_TILE_SIZE * 2 + b[1] * SIDE_TILE_SIZE + 2,
-        SIDE_TILE_SIZE - 4,
-        SIDE_TILE_SIZE - 4,
-        4
-      );
+      this.ctx.roundRect(t[0], t[1], SIDE_TILE_SIZE - 4, SIDE_TILE_SIZE - 4, 4);
       this.ctx.fill();
       this.ctx.closePath();
     });
   }
 
+  tetroCenteredPos(
+    tetro: [number, number][],
+    box: { left: number; top: number; bottom: number; right: number }
+  ) {
+    let tleft = tetro.reduce((r, b) => Math.min(r, b[0]), Infinity);
+    let tright = tetro.reduce((r, b) => Math.max(r, b[0]), -Infinity);
+    let ttop = tetro.reduce((r, b) => Math.min(r, b[1]), Infinity);
+    let tbottom = tetro.reduce((r, b) => Math.max(r, b[1]), -Infinity);
+
+    let newPos = tetro;
+    if (Math.abs(ttop - tbottom) >= 2) {
+      newPos = newPos.map((p) => rotatePoint(p, newPos[0]));
+
+      tleft = newPos.reduce((r, b) => Math.min(r, b[0]), Infinity);
+      tright = newPos.reduce((r, b) => Math.max(r, b[0]), -Infinity);
+      ttop = newPos.reduce((r, b) => Math.min(r, b[1]), Infinity);
+      tbottom = newPos.reduce((r, b) => Math.max(r, b[1]), -Infinity);
+    }
+
+    const widthBox = Math.abs(box.right - box.left);
+    const widthTetro = (Math.abs(tright - tleft) + 1) * SIDE_TILE_SIZE;
+    const offsetX = (widthBox - widthTetro) / 2;
+
+    const heightBox = Math.abs(box.top - box.bottom);
+
+    const heightTetro = (Math.abs(tbottom - ttop) + 1) * SIDE_TILE_SIZE;
+    const offsetY = (heightBox - heightTetro) / 2;
+
+    return newPos.map((t) => [
+      box.left + offsetX + (t[0] - tleft) * SIDE_TILE_SIZE,
+      box.top + offsetY + (t[1] - ttop) * SIDE_TILE_SIZE,
+    ]);
+  }
   startWait(key: string, delay: number) {
     this.waitTicks.set(key, { delay, tick: 0 });
   }
@@ -531,7 +572,7 @@ class Game {
         this.keys.pop();
         this.startWait('hard-dropping', 100);
       } else if (this.waitTicks.has('hard-dropping')) {
-        this.drawHardDopEffect(this.ctx, this.currentTetromino);
+        this.drawHardDropEffect(this.ctx, this.currentTetromino);
         this.currentTetromino.move('down');
         if (
           this.wait('hard-dropping', 100, dt) &&
