@@ -6,7 +6,7 @@ const FIELD_ROWS = 20;
 const FIELD_WIDTH = FIELD_COLS * FIELD_TILE_SIZE;
 const FIELD_HEIGHT = FIELD_ROWS * FIELD_TILE_SIZE;
 const FIELD_START = [Math.floor(FIELD_COLS / 2), 0];
-const FIELD_BG = 'hsl(252, 4%, 16%)';
+const FIELD_BG = 'hsl(252, 4%, 20%)';
 
 const SIDE_TILE_SIZE = 32;
 const SIDE_COLS = 5;
@@ -442,7 +442,7 @@ class Game {
     drawText(
       this.ctx,
       `Score ${this.score}`,
-      offsetX + SIDE_TILE_SIZE,
+      offsetX + SIDE_TILE_SIZE - 20,
       FONT_SIZE,
       FONT_SIZE
     );
@@ -450,7 +450,7 @@ class Game {
     drawText(
       this.ctx,
       'Next',
-      offsetX + SIDE_TILE_SIZE,
+      offsetX + SIDE_TILE_SIZE - 20,
       SIDE_TILE_SIZE * 2,
       FONT_SIZE
     );
