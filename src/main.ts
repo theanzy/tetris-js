@@ -191,6 +191,9 @@ class Tetromino {
   }
 
   rotate() {
+    if (this.shape === 'O') {
+      return;
+    }
     const first = this.blocks[0];
     const pivot = [first.x, first.y];
     const newPos = this.blocks.map((b) => b.getRotation(pivot as any));
