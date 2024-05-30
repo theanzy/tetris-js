@@ -196,9 +196,30 @@ class Tetromino {
     }
     const first = this.blocks[0];
     const pivot = [first.x, first.y];
-    const newPos = this.blocks.map((b) => b.getRotation(pivot as any));
+    let newPos = this.blocks.map((b) => b.getRotation(pivot as any));
 
-    const canRotate = !this.isCollide(newPos);
+    let canRotate = false;
+    let shifted = newPos.slice();
+    // shift right
+    for (let i = 0; i <= 4; i++) {
+      shifted = newPos.map(([x, y]) => [x + i, y]);
+      canRotate = !this.isCollide(shifted);
+      if (canRotate) {
+        newPos = shifted;
+        break;
+      }
+    }
+    if (!canRotate) {
+      // shift left
+      for (let i = 1; i <= 4; i++) {
+        shifted = newPos.map(([x, y]) => [x - i, y]);
+        canRotate = !this.isCollide(shifted);
+        if (canRotate) {
+          newPos = shifted;
+          break;
+        }
+      }
+    }
 
     if (canRotate) {
       this.blocks.forEach((b, i) => {
