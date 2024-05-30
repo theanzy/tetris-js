@@ -71,10 +71,12 @@ function randomTetroShape() {
   const idx = Math.floor(Math.random() * TETRO_SHAPES.length);
   return TETRO_SHAPES[idx];
 }
+const TETRO_HUES = new Map<TetroShape, number>();
 
 const TETRO_COLORS = TETRO_SHAPES.reduce((res, s, idx) => {
   const h = (idx * 40) % 255;
   res[s] = `hsl(${h}, 80%, 66%)`;
+  TETRO_HUES.set(s, h);
   return res;
 }, {} as Record<TetroShape, string>);
 
@@ -407,6 +409,35 @@ class Game {
     }
   }
 
+  drawHardDopEffect(ctx: CanvasRenderingContext2D, tetro: Tetromino) {
+    let startX = +Infinity;
+    let endX = -Infinity;
+    let startY = -Infinity;
+
+    for (let i = 0; i < tetro.blocks.length; i++) {
+      startX = Math.min(tetro.blocks[i].x, startX);
+      endX = Math.max(tetro.blocks[i].x, endX);
+      startY = Math.max(tetro.blocks[i].y, startY);
+    }
+
+    const dropPreview = this.getDropPreview(tetro, this.filledGrid);
+    const endY = dropPreview.reduce((r, [x, y]) => Math.max(r, y), -Infinity);
+
+    for (let i = startY; i <= endY; i++) {
+      ctx.fillStyle = `hsl(${TETRO_HUES.get(tetro.shape)},10%, ${
+        (endY - i) * 2 + 15
+      }%)`;
+      for (let j = startX; j <= endX; j++) {
+        ctx.fillRect(
+          j * FIELD_TILE_SIZE,
+          i * FIELD_TILE_SIZE,
+          FIELD_TILE_SIZE,
+          FIELD_TILE_SIZE
+        );
+      }
+    }
+  }
+
   drawSide(offsetX: number) {
     drawText(
       this.ctx,
@@ -448,6 +479,11 @@ class Game {
       this.ctx.closePath();
     });
   }
+
+  startWait(key: string, delay: number) {
+    this.waitTicks.set(key, { delay, tick: 0 });
+  }
+
   wait(key: string, delay: number, dt: number) {
     if (!this.waitTicks.has(key)) {
       this.waitTicks.set(key, { delay, tick: 0 });
@@ -491,26 +527,29 @@ class Game {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     // update
     if (this.state === 'playing') {
-      this.control(dt);
-      this.dropTick += dt;
-      if (this.dropTick >= this.dropInterval) {
-        this.currentTetromino.update(dt);
-        if (this.currentTetromino.isLanded) {
-          // fill grid
-          this.currentTetromino.blocks.forEach((b) => {
-            if (b.y >= 0) {
-              this.filledGrid[b.y][b.x] = b.color;
-            }
-          });
-
-          this.clearLines();
-          if (this.currentTetromino.blocks.some((b) => b.y <= 0)) {
-            this.state = 'game-over';
-          }
-          this.currentTetromino = this.nextTetromino;
-          this.nextTetromino = new Tetromino(this.filledGrid);
+      if (this.getKey() === ' ' && this.wait('space-key', 100, dt)) {
+        this.keys.pop();
+        this.startWait('hard-dropping', 100);
+      } else if (this.waitTicks.has('hard-dropping')) {
+        this.drawHardDopEffect(this.ctx, this.currentTetromino);
+        this.currentTetromino.move('down');
+        if (
+          this.wait('hard-dropping', 100, dt) &&
+          this.currentTetromino.isLanded
+        ) {
+          this.waitTicks.delete('hard-dropping');
+          this.tetroLanded();
         }
-        this.dropTick = 0;
+      } else {
+        this.control(dt);
+        this.dropTick += dt;
+        if (this.dropTick >= this.dropInterval) {
+          this.currentTetromino.update(dt);
+          if (this.currentTetromino.isLanded) {
+            this.tetroLanded();
+          }
+          this.dropTick = 0;
+        }
       }
       for (let i = 0; i < this.blockEffects.length; i++) {
         const bfx = this.blockEffects[i];
@@ -542,6 +581,22 @@ class Game {
         FONT_SIZE * 2
       );
     }
+  }
+  tetroLanded() {
+    // fill grid
+    this.currentTetromino.blocks.forEach((b) => {
+      if (b.y >= 0) {
+        this.filledGrid[b.y][b.x] = b.color;
+      }
+    });
+    this.clearLines();
+
+    if (this.currentTetromino.blocks.some((b) => b.y <= 0)) {
+      this.state = 'game-over';
+    }
+
+    this.currentTetromino = this.nextTetromino;
+    this.nextTetromino = new Tetromino(this.filledGrid);
   }
 
   drawFilled(ctx: CanvasRenderingContext2D) {
