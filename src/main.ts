@@ -395,8 +395,8 @@ class Game {
 
   getDropPreview(tetro: Tetromino, filledGrid: string[][]) {
     let previewPos: number[][] = [];
-    for (let i = 0; i < FIELD_ROWS; i++) {
-      const maxY = tetro.blocks.reduce((r, b) => Math.max(r, b.y), -Infinity);
+    const maxY = tetro.blocks.reduce((r, b) => Math.max(r, b.y), -Infinity);
+    for (let i = maxY; i < FIELD_ROWS; i++) {
       const newPos = tetro.blocks.map((b) => [b.x, b.y + (i - maxY)]);
       if (newPos.some(([x, y]) => filledGrid[y]?.[x])) {
         break;
