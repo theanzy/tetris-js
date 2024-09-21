@@ -178,7 +178,7 @@ class Tetromino {
         new Block(
           FIELD_TILE_SIZE,
           startPos[0] + x,
-          startPos[1] + y - minY,
+          startPos[1] + y - minY - 4,
           TETRO_COLORS[this.shape]
         )
     );
@@ -239,13 +239,16 @@ class Tetromino {
   }
 
   move(dir: Direction) {
-    let vDir = DIRECTIONS[dir];
-    const newBlockPos = this.blocks.map((b) => [b.x + vDir[0], b.y + vDir[1]]);
+    let frameMov = DIRECTIONS[dir];
+    const newBlockPos = this.blocks.map((b) => [
+      b.x + frameMov[0],
+      b.y + frameMov[1],
+    ]);
     const canmove = !this.isCollide(newBlockPos);
     if (canmove) {
       this.blocks.forEach((b) => {
-        b.x += vDir[0];
-        b.y += vDir[1];
+        b.x += frameMov[0];
+        b.y += frameMov[1];
       });
     } else if (dir === 'down') {
       this.isLanded = true;
@@ -541,7 +544,7 @@ class Game {
     return false;
   }
 
-  clearLines() {
+  tryClearLines() {
     let rowToFill = FIELD_ROWS - 1;
     let clearedLines = 0;
     for (let r = FIELD_ROWS - 1; r >= 0; r--) {
@@ -630,7 +633,7 @@ class Game {
         this.filledGrid[b.y][b.x] = b.color;
       }
     });
-    this.clearLines();
+    this.tryClearLines();
 
     if (this.currentTetromino.blocks.some((b) => b.y <= 0)) {
       this.state = 'game-over';
